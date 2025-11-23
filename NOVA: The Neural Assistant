@@ -1,0 +1,208 @@
+import speech_recognition as sr
+import subprocess
+import sys
+import pyttsx3
+import webbrowser
+import re
+from datetime import datetime
+import os
+
+class SmartVoiceAssistant:
+    def __init__(self):
+        self.recognizer = sr.Recognizer()
+        self.llama_active = True
+
+        # Define intents and patterns
+        self.intents = {
+            'open_website': [
+                r'open\s+(\w+\.com|\w+\.org)',
+                r'go to\s+(\w+\.com|\w+\.org)',
+                r'open\s+(google|youtube|github|twitter|facebook|linkedin|reddit|stackoverflow)',
+                r'search\s+(.*)\s+on\s+(google|youtube)',
+            ],
+            'open_application': [
+                r'open\s+(chrome|firefox|notepad|calculator|vscode|code|spotify|telegram|discord)',
+                r'launch\s+(\w+)',
+                r'start\s+(\w+)',
+            ],
+            'system_command': [
+                r'what time is it',
+                r'what\'s the time',
+                r'shutdown',
+                r'restart',
+                r'lock screen',
+            ],
+            'llama_query': []  # Everything else goes to Llama
+        }
+
+        # Application paths (Windows only)
+        self.app_paths = self._get_app_paths()
+
+    def _get_app_paths(self):
+        """Get application paths for Windows only"""
+        return {
+            'chrome': 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'firefox': 'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
+            'notepad': 'notepad.exe',
+            'calculator': 'calc.exe',
+            'vscode': 'code',
+            'code': 'code',
+            'discord': os.path.expandvars(r'%LOCALAPPDATA%\\Discord\\Update.exe --processStart Discord.exe'),
+        }
+
+    def classify_intent(self, text):
+        """Determine what the user wants to do"""
+        text = text.lower()
+        for intent, patterns in self.intents.items():
+            for pattern in patterns:
+                match = re.search(pattern, text)
+                if match:
+                    return intent, match.groups() if match.groups() else None
+        # Default to Llama if no specific intent matched
+        return 'llama_query', None
+
+    def open_website(self, text):
+        """Open website based on voice command"""
+        text = text.lower()
+        websites = {
+            'google': 'https://www.google.com',
+            'youtube': 'https://www.youtube.com',
+            'github': 'https://www.github.com',
+            'twitter': 'https://www.twitter.com',
+            'facebook': 'https://www.facebook.com',
+            'linkedin': 'https://www.linkedin.com',
+            'reddit': 'https://www.reddit.com',
+            'stackoverflow': 'https://stackoverflow.com',
+        }
+        # Search query
+        search_match = re.search(r'search\s+(.*)\s+on\s+(google|youtube)', text)
+        if search_match:
+            query, platform = search_match.groups()
+            if platform == 'google':
+                url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+            elif platform == 'youtube':
+                url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+            print(f"🌐 Searching '{query}' on {platform.title()}...")
+            webbrowser.open(url)
+            return True
+        # Direct website
+        for site, url in websites.items():
+            if site in text:
+                print(f"🌐 Opening {site.title()}...")
+                webbrowser.open(url)
+                return True
+        # Extract URL
+        url_match = re.search(r'(\w+\.(?:com|org|net))', text)
+        if url_match:
+            url = f"https://{url_match.group(1)}"
+            print(f"🌐 Opening {url}...")
+            webbrowser.open(url)
+            return True
+        return False
+
+    def open_application(self, text):
+        """Open application for Windows only"""
+        text = text.lower()
+        for app_name, app_path in self.app_paths.items():
+            if app_name in text:
+                print(f"🚀 Launching {app_name.title()}...")
+                try:
+                    if app_name == 'discord':
+                        # Discord's path includes launch arguments
+                        subprocess.Popen(app_path.split())
+                    else:
+                        subprocess.Popen(app_path)
+                    return True
+                except Exception as e:
+                    print(f"❌ Could not open {app_name}: {e}")
+                    return False
+        print(f"❌ Application not found in: {text}")
+        return False
+
+    def handle_system_command(self, text):
+        """Handle basic system time queries"""
+        text = text.lower()
+        if 'time' in text:
+            current_time = datetime.now().strftime("%I:%M %p")
+            print(f"🕐 The time is {current_time}")
+            return True
+        return False
+
+    def send_to_llama(self, prompt):
+        """Send query to Llama"""
+        try:
+            command = ["ollama", "run", "llama3.2", prompt]
+            print("🤖 Llama is thinking...\n")
+            print("-" * 50)
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1
+            )
+            for line in process.stdout:
+                print(line, end='')
+            process.wait()
+            print("\n" + "-" * 50)
+        except Exception as e:
+            print(f"❌ Llama error: {e}")
+
+    def capture_voice(self):
+        """Capture voice with optimized settings"""
+        with sr.Microphone() as source:
+            print("🎤 Listening...")
+            try:
+                audio = self.recognizer.listen(source, timeout=3, phrase_time_limit=10)
+                text = self.recognizer.recognize_google(audio)
+                print(f"📝 You: {text}\n")
+                return text
+            except:
+                return None
+
+    def process_command(self, text):
+        """Main command processor with intent classification"""
+        intent, params = self.classify_intent(text)
+        print(f"🎯 Intent: {intent}")
+        if intent == 'open_website':
+            self.open_website(text)
+        elif intent == 'open_application':
+            self.open_application(text)
+        elif intent == 'system_command':
+            self.handle_system_command(text)
+        else:
+            self.send_to_llama(text)
+
+    def run(self):
+        """Main loop"""
+
+        tts_engine=pyttsx3.init()
+        recognizer=sr.Recognizer()
+        microphone=sr.Microphone()
+        print("=" * 81)
+        greeting_text="Hello, I'm NOVA: The Neural Assistant. How can I help you today?"
+        print(f"Assistant: {greeting_text}")
+        tts_engine.say(greeting_text)
+        tts_engine.runAndWait()
+        print("=" * 81   )
+        print("\n✨ Features:")
+        print("  • Open websites: 'open google', 'search Python on youtube'")
+        print("  • Launch apps: 'open chrome', 'launch vscode', 'open discord'")
+        print("  • System info: 'what time is it'")
+        print("  • AI chat: Ask anything else!")
+        print("  • Exit: Say 'exit' or 'quit'\n")
+        try:
+            while True:
+                prompt = self.capture_voice()
+                if prompt:
+                    if prompt.lower() in ['exit', 'quit', 'bye', 'goodbye']:
+                        print("👋 Goodbye!")
+                        break
+                    self.process_command(prompt)
+                    print("\n" + "=" * 50 + "\n")
+        except KeyboardInterrupt:
+            print("\n\n👋 Interrupted. Goodbye!")
+
+if __name__ == "__main__":
+    assistant = SmartVoiceAssistant()
+    assistant.run()
