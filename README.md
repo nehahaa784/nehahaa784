@@ -7,7 +7,7 @@
 
 ## 🚀 About Me  
 - 🎯 Passionate about **Data Science, Machine Learning & Big Data**  
-- 📚 Currently exploring **Advanced ML, Data Analytics & Hadoop Ecosystem**  
+- 📚 Currently exploring **Advanced ML, Data Analytics & GenAI**  
 - 💡 Interested in solving real-world problems using data-driven approaches  
 - 🤝 Open to **internships, projects & collaborations**  
 
